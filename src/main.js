@@ -146,10 +146,44 @@ const dadosCSV = parserCSV(csvBruto);
 // Estatísticas recebidas por classe (Média, Top 20%, Bottom 20% + Min/Max calculados ou fornecidos)
 const estatisticas = {
     p1: { media: .93, top20:1.3, bottom20: 0.7, min: -0.7, max: 2.0 },
-    p2: { media: 1.08, top20: 1.4, bottom20: .6, min: -0.2, max: 1.8 },
+    p2: { media: 1.08, top20: 1.6, bottom20: .6, min: -0.2, max: 1.8 },
     p3: { media: .58, top20: 1.0, bottom20: .2, min: -0.8, max: 1.8 },
-    p4: { media: .73, top20: 1.2, bottom20: .2, min: -1.0, max: 2.0 }
+    p4: { media: .73, top20: 1.2, bottom20: .0, min: -1.0, max: 2.0 }
 };
+// Configuração dos botões interativos dentro do Canvas puro
+const botoesRadar = [
+    { id: 'top20', label: 'Top 20%', cor: '#2ecc71', checado: true,  x: 0, y: 0, w: 75, h: 18 },
+    { id: 'media', label: 'Média',   cor: '#3498db', checado: true,  x: 0, y: 0, w: 65, h: 18 },
+    { id: 'bottom20', label: 'Bottom 20%', cor: '#e74c3c', checado: true, x: 0, y: 0, w: 90, h: 18 }
+];
+
+// Captura cliques no Canvas e checa se atingiram os botões
+window.addEventListener('DOMContentLoaded', () => {
+    const canvas = document.getElementById('canvas');
+    if (!canvas) return;
+
+    canvas.addEventListener('click', (evento) => {
+        // Obtém a posição exata do clique dentro do Canvas
+        const rect = canvas.getBoundingClientRect();
+        const cliqueX = evento.clientX - rect.left;
+        const cliqueY = evento.clientY - rect.top;
+
+        // Verifica se o clique acertou algum botão
+        let houveAlteracao = false;
+        botoesRadar.forEach(botao => {
+            if (cliqueX >= botao.x && cliqueX <= botao.x + botao.w &&
+                cliqueY >= botao.y && cliqueY <= botao.y + botao.h) {
+                botao.checado = !botao.checado; // Inverte o estado (marcado/desmarcado)
+                houveAlteracao = true;
+            }
+        });
+
+        // Se o usuário clicou em um botão, redesenha todo o dashboard
+        if (houveAlteracao) {
+            desenharDashboard();
+        }
+    });
+});
 
 // Configurações Globais de Desenho
 const LARGURA = 360;
@@ -378,6 +412,228 @@ function plotarDispersao(offsetX, offsetY, cX, cY, labelX, labelY) {
         ctx.stroke();
     }
 
+function plotarRadar(offsetX, offsetY, label) {
+    const centroX = offsetX + (TAMANHO_QUADRANTE * 1.5);
+    const centroY = offsetY + (TAMANHO_QUADRANTE / 2) + 35; // Deslocado um pouco para dar espaço aos botões
+    const raioMax = 70;
+
+    const RADAR_MIN = -0.2;
+    const RADAR_MAX = 1.8;
+    const RADAR_INTERVALO = RADAR_MAX - RADAR_MIN;
+
+    const autores = [
+        { chave: 'p1', label: 'Bacon' },
+        { chave: 'p2', label: 'Popper' },
+        { chave: 'p3', label: 'Kuhn' },
+        { chave: 'p4', label: 'Feyerabend' }
+    ];
+
+    // Título do Gráfico
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, centroX, offsetY + 20);
+
+    // Mapeamento de coordenadas
+    function obterCoordenadas(valor, indiceEixo) {
+        const valLimitado = Math.max(RADAR_MIN, Math.min(RADAR_MAX, valor));
+        const raio = ((valLimitado - RADAR_MIN) / RADAR_INTERVALO) * raioMax;
+        const angulo = (indiceEixo * Math.PI / 2) - Math.PI / 2;
+        return { x: centroX + raio * Math.cos(angulo), y: centroY + raio * Math.sin(angulo) };
+    }
+
+    // --- 1. DESENHAR A TEIA DE FUNDO ---
+    const niveis = [0.5, 0.75, 1.0, 1.25, 1.5];
+    niveis.forEach(nivel => {
+        ctx.strokeStyle = nivel === 1.0 ? '#b2bec3' : '#e2e8f0';
+        ctx.lineWidth = nivel === 1.0 ? 1.5 : 1;
+        ctx.beginPath();
+        autores.forEach((_, i) => {
+            const pt = obterCoordenadas(nivel, i);
+            if (i === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+        ctx.stroke();
+
+        const ptTexto = obterCoordenadas(nivel, 0);
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '8px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(nivel.toFixed(2), ptTexto.x + 4, ptTexto.y + 3);
+    });
+
+    // --- 2. DESENHAR OS EIXOS E LABELS ---
+    autores.forEach((autor, i) => {
+        const ptMax = obterCoordenadas(RADAR_MAX, i);
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(centroX, centroY);
+        ctx.lineTo(ptMax.x, ptMax.y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 10px sans-serif';
+        if (i === 0) { ctx.textAlign = 'center'; ctx.fillText(autor.label, ptMax.x, ptMax.y - 8); }
+        if (i === 1) { ctx.textAlign = 'left';   ctx.fillText(autor.label, ptMax.x + 8, ptMax.y + 3); }
+        if (i === 2) { ctx.textAlign = 'center'; ctx.fillText(autor.label, ptMax.x, ptMax.y + 12); }
+        if (i === 3) { ctx.textAlign = 'right';  ctx.fillText(autor.label, ptMax.x - 8, ptMax.y + 3); }
+    });
+
+    // --- 3. PLOTAR CAMADAS DE DADOS (Baseado no estado dos botões) ---
+    function desenharPoligonoDados(metrica, corPreenchimento, corLinha) {
+        ctx.beginPath();
+        autores.forEach((autor, i) => {
+            const valor = estatisticas[autor.chave][metrica];
+            const pt = obterCoordenadas(valor, i);
+            if (i === 0) ctx.moveTo(pt.x, pt.y);
+            else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = corPreenchimento;
+        ctx.fill();
+        ctx.strokeStyle = corLinha;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    // Procura o estado de ativação no nosso array de botões do Canvas puro
+    const estaAtivo = (id) => botoesRadar.find(b => b.id === id).checado;
+
+    if (estaAtivo('bottom20')) desenharPoligonoDados('bottom20', 'rgba(231, 76, 60, 0.15)', '#e74c3c');
+    if (estaAtivo('top20'))    desenharPoligonoDados('top20', 'rgba(46, 204, 113, 0.15)', '#2ecc71');
+    if (estaAtivo('media'))    desenharPoligonoDados('media', 'rgba(52, 152, 219, 0.2)', '#3498db');
+
+    // --- 4. RENDERIZAR BOTÕES INTERATIVOS (CANVAS PURO) ---
+    // Posiciona os botões alinhados horizontalmente logo abaixo do título do radar
+    let xAtual = centroX - 110; // Ponto de partida centralizado
+    const yBotoes = offsetY + 35;
+
+    botoesRadar.forEach(botao => {
+        // Atualiza dinamicamente as coordenadas reais para o detector de cliques calcular
+        botao.x = xAtual;
+        botao.y = yBotoes;
+
+        // Desenha o quadrado do Checkbox
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(botao.x, botao.y, 12, 12);
+        ctx.strokeRect(botao.x, botao.y, 12, 12);
+
+        // Se estiver checado, desenha o preenchimento interno com a cor correspondente
+        if (botao.checado) {
+            ctx.fillStyle = botao.cor;
+            ctx.fillRect(botao.x + 2, botao.y + 2, 8, 8);
+        }
+
+        // Desenha o texto descritivo do lado da caixa
+        ctx.fillStyle = '#475569';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(botao.label, botao.x + 16, botao.y + 10);
+
+        // Avança o cursor X para desenhar o próximo botão ao lado
+        xAtual += botao.w;
+    });
+}
+
+function plotarBarrasEmpilhadas(offsetX, offsetY, label) {
+    const larguraGrafico = 500; // Largura total da barra (representa 100%)
+    const alturaBarra = 20;
+    const espacamento = 15;
+    
+    const autores = [
+        { chave: 'p1', label: 'Bacon' },
+        { chave: 'p2', label: 'Popper' },
+        { chave: 'p3', label: 'Kuhn' },
+        { chave: 'p4', label: 'Feyerabend' }
+    ];
+
+    // Definição das 4 categorias com suas respectivas cores
+    const categorias = [
+        { id: 'discorda', label: 'Discorda (-2 a -0.4)', cor: '#e74c3c' },         // Vermelho
+        { id: 'neutro',   label: 'Neutro (-0.4 a 0.4)',  cor: '#cbd5e1' },         // Cinza claro
+        { id: 'concorda', label: 'Concorda (0.4 a 1.2)', cor: '#3498db' },         // Azul
+        { id: 'forte',    label: 'Concorda Fortemente (1.2 a 2)', cor: '#2ecc71' } // Verde
+    ];
+
+    // Título do Gráfico
+    ctx.fillStyle = '#2c3e50';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, offsetX, offsetY + 20);
+
+    // =========================================================================
+    // CONFIGURAÇÃO MANUAL DOS DADOS (Altere os números abaixo com os seus dados)
+    // O valor deve ser de 0.0 a 1.0 (ex: 0.35 = 35%). A soma de cada linha deve dar 1.0.
+    // =========================================================================
+    const distribuicaoManual = {
+        p1: { discorda: 0.0099, neutro: 0.1386, concorda: 0.5743, forte: 0.2772 }, // Bacon
+        p2: { discorda: 0.0, neutro: 0.099, concorda: 0.5644, forte: 0.3366 }, // Popper
+        p3: { discorda: 0.0594, neutro: 0.4158, concorda: 0.4158, forte: 0.1089 }, // Kuhn
+        p4: { discorda: 0.0594, neutro: 0.2277, concorda: 0.6139, forte: 0.099 }  // Feyerabend
+    };
+    // =========================================================================
+
+    // --- RENDERIZAÇÃO DAS BARRAS (EIXO Y) ---
+    let yAtual = offsetY + 50;
+
+    autores.forEach(autor => {
+        // Nome do autor alinhado à esquerda
+        ctx.fillStyle = '#475569';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(autor.label, offsetX + 80, yAtual + 14);
+
+        // Dados manuais do autor atual
+        const percentuais = distribuicaoManual[autor.chave];
+        let xAcumulado = offsetX + 95; // Início da barra horizontal
+
+        categorias.forEach(cat => {
+            const percentual = percentuais[cat.id]; // Pega o valor (ex: 0.25)
+            const larguraSegmento = percentual * larguraGrafico;
+
+            if (larguraSegmento > 0) {
+                // Desenha o bloco colorido da categoria
+                ctx.fillStyle = cat.cor;
+                ctx.fillRect(xAcumulado, yAtual, larguraSegmento, alturaBarra);
+
+                // Desenha o número do percentual dentro do bloco (se couber)
+                if (larguraSegmento > 25) {
+                    ctx.fillStyle = cat.id === 'neutro' ? '#475569' : '#ffffff';
+                    ctx.font = 'bold 9px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`${Math.round(percentual * 100)}%`, xAcumulado + (larguraSegmento / 2), yAtual + 13);
+                }
+            }
+            xAcumulado += larguraSegmento;
+        });
+
+        yAtual += alturaBarra + espacamento;
+    });
+
+    // --- DESENHAR A LEGENDA DO GRÁFICO ---
+    let xLegenda = offsetX + 95;
+    const yLegenda = yAtual + 10;
+
+    ctx.textAlign = 'left';
+    ctx.font = '10px sans-serif';
+
+    categorias.forEach(cat => {
+        ctx.fillStyle = cat.cor;
+        ctx.fillRect(xLegenda, yLegenda, 12, 12);
+
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(cat.label, xLegenda + 16, yLegenda + 10);
+
+        xLegenda += 135; 
+    });
+}
+
+
+
     // --- POSICIONAMENTO CORRIGIDO DA GRADE (Mapeamento p1, p2, p3, p4) ---
     const dispersoes = [
         { x: 'p1', y: 'p2', lx: 'Bacon', ly: 'Popper' },
@@ -406,6 +662,18 @@ function plotarDispersao(offsetX, offsetY, cX, cY, labelX, labelY) {
     boxplots.forEach((b, i) => {
         plotarBoxPlot(i * 240, 2 * TAMANHO_QUADRANTE, b.chave, b.label);
     });
+
+    // Desenha os 4 Boxplots na terceira linha da grade
+    boxplots.forEach((b, i) => {
+        plotarBoxPlot(i * 240, 2 * TAMANHO_QUADRANTE, b.chave, b.label);
+    });
+
+    // === ADICIONE ESTA LINHA AQUI ===
+    // Desenha o gráfico de Radar na quarta linha da grade (3 * TAMANHO_QUADRANTE = 690px de altura)
+    plotarRadar(0, 3 * TAMANHO_QUADRANTE, 'Perfil Comparativo dos Autores (IMPA Tech)');
+
+    // Desenha o gráfico de barras empilhadas na quinta linha (4 * TAMANHO_QUADRANTE = 920px de altura)
+    plotarBarrasEmpilhadas(0, 4 * TAMANHO_QUADRANTE, 'Distribuição Percentual de Posicionamento por Autor (IMPA Tech)');
 }
 // main.js
 window.onload = function() {
