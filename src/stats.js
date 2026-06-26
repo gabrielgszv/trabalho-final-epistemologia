@@ -7,12 +7,12 @@ var mean=function(){
   
 }
 
-var min()=function(){
+var min=function(){
 
   
 }
 
-var max()=function(){
+var max=function(){
 
   
 }
